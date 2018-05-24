@@ -18,10 +18,7 @@ harness = false
 bitflags = "1.0"
 option-filter = "1.0"
 btoi = "0.3"
-
-[dependencies.arrayvec]
-version = "0.4"
-features = ["use_union"]
+smallvec = "0.6"
 
 [build-dependencies]
 version_check = "0.1"

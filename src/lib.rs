@@ -78,7 +78,7 @@
 #![cfg_attr(nightly, feature(trusted_len))]
 #![cfg_attr(nightly, feature(option_filter))]
 
-extern crate arrayvec;
+extern crate smallvec;
 #[macro_use]
 extern crate bitflags;
 extern crate btoi;

@@ -45,7 +45,7 @@ pub fn perft<P: Position + Clone>(pos: &P, depth: u8) -> u64 {
         if depth == 1 {
             moves.len() as u64
         } else {
-            moves.drain(..).map(|m| {
+            moves.drain().map(|m| {
                 let mut child = pos.clone();
                 child.play_unchecked(&m);
                 perft(&child, depth - 1)
