@@ -15,15 +15,17 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 use attacks;
-use board::Board;
 use bitboard::Bitboard;
-use square::{Rank, Square};
-use types::{Black, CastlingSide, Color, Move, Piece, Pocket, Pockets, RemainingChecks, Role, White};
-use setup::{Castles, Setup, SwapTurn, EMPTY_CASTLES};
+use board::Board;
 use movelist::{ArrayVecExt, MoveList};
+use setup::{Castles, Setup, SwapTurn, EMPTY_CASTLES};
+use square::{Rank, Square};
+use types::{
+    Black, CastlingSide, Color, Move, Piece, Pocket, Pockets, RemainingChecks, Role, White,
+};
 
-use std::fmt;
 use std::error::Error;
+use std::fmt;
 
 /// Outcome of a game.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -39,15 +41,26 @@ impl Outcome {
             Outcome::Draw => None,
         }
     }
+
+    pub fn is_decisive(self) -> bool {
+        match self {
+            Outcome::Decisive { winner: _ } => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for Outcome {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", match *self {
-            Outcome::Decisive { winner: White } => "1-0",
-            Outcome::Decisive { winner: Black } => "0-1",
-            Outcome::Draw => "1/2-1/2",
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                Outcome::Decisive { winner: White } => "1-0",
+                Outcome::Decisive { winner: Black } => "0-1",
+                Outcome::Draw => "1/2-1/2",
+            }
+        )
     }
 }
 
@@ -182,14 +195,14 @@ pub trait Position: Setup {
     fn is_legal(&self, m: &Move) -> bool {
         let mut moves = MoveList::new();
         match *m {
-            Move::Normal { role, to, .. } | Move::Put { role, to } =>
-                self.san_candidates(role, to, &mut moves),
-            Move::EnPassant { to, .. } =>
-                self.san_candidates(Role::Pawn, to, &mut moves),
-            Move::Castle { king, rook } if king.file() < rook.file() =>
-                self.castling_moves(CastlingSide::KingSide, &mut moves),
-            Move::Castle { .. } =>
-                self.castling_moves(CastlingSide::QueenSide, &mut moves),
+            Move::Normal { role, to, .. } | Move::Put { role, to } => {
+                self.san_candidates(role, to, &mut moves)
+            }
+            Move::EnPassant { to, .. } => self.san_candidates(Role::Pawn, to, &mut moves),
+            Move::Castle { king, rook } if king.file() < rook.file() => {
+                self.castling_moves(CastlingSide::KingSide, &mut moves)
+            }
+            Move::Castle { .. } => self.castling_moves(CastlingSide::QueenSide, &mut moves),
         }
         moves.contains(m)
     }
@@ -200,15 +213,20 @@ pub trait Position: Setup {
     /// rights are irreversible.
     fn is_irreversible(&self, m: &Move) -> bool {
         match *m {
-            Move::Normal { role: Role::Pawn, .. } |
-                Move::Normal { capture: Some(_), .. } |
-                Move::Castle { .. } |
-                Move::EnPassant { .. } |
-                Move::Put { .. } => true,
-            Move::Normal { role, from, to, .. } =>
-                self.castling_rights().contains(from) ||
-                self.castling_rights().contains(to) ||
-                (role == Role::King && self.castles().has_side(self.turn()))
+            Move::Normal {
+                role: Role::Pawn, ..
+            }
+            | Move::Normal {
+                capture: Some(_), ..
+            }
+            | Move::Castle { .. }
+            | Move::EnPassant { .. }
+            | Move::Put { .. } => true,
+            Move::Normal { role, from, to, .. } => {
+                self.castling_rights().contains(from)
+                    || self.castling_rights().contains(to)
+                    || (role == Role::King && self.castles().has_side(self.turn()))
+            }
         }
     }
 
@@ -303,7 +321,9 @@ pub trait Position: Setup {
     fn outcome(&self) -> Option<Outcome> {
         self.variant_outcome().or_else(|| {
             if self.is_checkmate() {
-                Some(Outcome::Decisive { winner: !self.turn() })
+                Some(Outcome::Decisive {
+                    winner: !self.turn(),
+                })
             } else if self.is_insufficient_material() || self.is_stalemate() {
                 Some(Outcome::Draw)
             } else {
@@ -328,6 +348,14 @@ pub trait Position: Setup {
             Ok(self)
         } else {
             Err(IllegalMove)
+        }
+    }
+
+    fn play_safe(&mut self, m: &Move) {
+        if self.is_legal(m) {
+            self.play_unchecked(m)
+        } else {
+            panic!("Illegal Move Play\n{}", m);
         }
     }
 
@@ -380,21 +408,43 @@ impl Default for Chess {
 }
 
 impl Setup for Chess {
-    fn board(&self) -> &Board { &self.board }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.turn }
-    fn castling_rights(&self) -> Bitboard { self.castles.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.ep_square.filter(|_| has_relevant_ep(self)) }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.halfmove_clock }
-    fn fullmoves(&self) -> u32 { self.fullmoves }
+    fn board(&self) -> &Board {
+        &self.board
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.turn
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.castles.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.ep_square.filter(|_| has_relevant_ep(self))
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.halfmove_clock
+    }
+    fn fullmoves(&self) -> u32 {
+        self.fullmoves
+    }
 }
 
 impl Position for Chess {
     fn play_unchecked(&mut self, m: &Move) {
-        do_move(&mut self.board, &mut self.turn, &mut self.castles,
-                &mut self.ep_square, &mut self.halfmove_clock,
-                &mut self.fullmoves, m);
+        do_move(
+            &mut self.board,
+            &mut self.turn,
+            &mut self.castles,
+            &mut self.ep_square,
+            &mut self.halfmove_clock,
+            &mut self.fullmoves,
+            m,
+        );
     }
 
     fn from_setup<S: Setup>(setup: &S) -> Result<Chess, PositionError> {
@@ -422,7 +472,10 @@ impl Position for Chess {
     fn legal_moves(&self, moves: &mut MoveList) {
         moves.clear();
 
-        let king = self.board().king_of(self.turn()).expect("king in standard chess");
+        let king = self
+            .board()
+            .king_of(self.turn())
+            .expect("king in standard chess");
 
         let has_ep = gen_en_passant(self.board(), self.turn(), self.ep_square, moves);
 
@@ -445,7 +498,10 @@ impl Position for Chess {
 
     fn castling_moves(&self, side: CastlingSide, moves: &mut MoveList) {
         moves.clear();
-        let king = self.board().king_of(self.turn()).expect("king in standard chess");
+        let king = self
+            .board()
+            .king_of(self.turn())
+            .expect("king in standard chess");
         gen_castling_moves(self, &self.castles, king, side, moves);
     }
 
@@ -453,7 +509,10 @@ impl Position for Chess {
         moves.clear();
 
         if gen_en_passant(self.board(), self.turn(), self.ep_square, moves) {
-            let king = self.board().king_of(self.turn()).expect("king in standard chess");
+            let king = self
+                .board()
+                .king_of(self.turn())
+                .expect("king in standard chess");
             let blockers = slider_blockers(self.board(), self.them(), king);
             moves.swap_retain(|m| is_safe(self, king, m, blockers));
         }
@@ -462,7 +521,10 @@ impl Position for Chess {
     fn san_candidates(&self, role: Role, to: Square, moves: &mut MoveList) {
         moves.clear();
 
-        let king = self.board().king_of(self.turn()).expect("king in standard chess");
+        let king = self
+            .board()
+            .king_of(self.turn())
+            .expect("king in standard chess");
         let checkers = self.checkers();
 
         if checkers.is_empty() {
@@ -496,10 +558,9 @@ impl Position for Chess {
             filter_san_candidates(role, to, moves);
         }
 
-        let has_ep =
-            role == Role::Pawn &&
-            Some(to) == self.ep_square &&
-            gen_en_passant(self.board(), self.turn(), self.ep_square, moves);
+        let has_ep = role == Role::Pawn
+            && Some(to) == self.ep_square
+            && gen_en_passant(self.board(), self.turn(), self.ep_square, moves);
 
         let blockers = slider_blockers(self.board(), self.them(), king);
         if blockers.any() || has_ep {
@@ -509,7 +570,8 @@ impl Position for Chess {
 
     fn has_insufficient_material(&self, color: Color) -> bool {
         // Pawns, rooks and queens are never insufficient material.
-        if (self.board.by_color(color) & (self.board.pawns() | self.board.rooks_and_queens())).any() {
+        if (self.board.by_color(color) & (self.board.pawns() | self.board.rooks_and_queens())).any()
+        {
             return false;
         }
 
@@ -518,8 +580,9 @@ impl Position for Chess {
         // (2) The opponent does not have pawns, knights, bishops or rooks.
         //     These would allow self mate.
         if (self.board.by_color(color) & self.board.knights()).any() {
-            return self.board.by_color(color).count() <= 2 &&
-                (self.board.by_color(!color) & !self.board.kings() & !self.board().queens()).is_empty();
+            return self.board.by_color(color).count() <= 2
+                && (self.board.by_color(!color) & !self.board.kings() & !self.board().queens())
+                    .is_empty();
         }
 
         // Bishops are only insufficient material if:
@@ -528,24 +591,29 @@ impl Position for Chess {
         // (2) The opponent does not have bishops on the opposite color,
         //      pawns or knights. These would allow self mate.
         if (self.board.by_color(color) & self.board.bishops()).any() {
-            let same_color =
-                (self.board().bishops() & Bitboard::DARK_SQUARES).is_empty() ||
-                (self.board().bishops() & Bitboard::LIGHT_SQUARES).is_empty();
-            return same_color &&
-                (self.board.by_color(!color) & !self.board.kings() & !self.board().rooks_and_queens()).is_empty()
+            let same_color = (self.board().bishops() & Bitboard::DARK_SQUARES).is_empty()
+                || (self.board().bishops() & Bitboard::LIGHT_SQUARES).is_empty();
+            return same_color
+                && (self.board.by_color(!color)
+                    & !self.board.kings()
+                    & !self.board().rooks_and_queens())
+                .is_empty();
         }
 
         true
     }
 
-    fn is_variant_end(&self) -> bool { false }
-    fn variant_outcome(&self) -> Option<Outcome> { None }
+    fn is_variant_end(&self) -> bool {
+        false
+    }
+    fn variant_outcome(&self) -> Option<Outcome> {
+        None
+    }
 }
 
 impl CastlingUncoversRankAttack for Chess {
     fn castling_uncovers_rank_attack(&self, rook: Square, king_to: Square) -> bool {
-        self.castles.is_chess960() &&
-        castling_uncovers_rank_attack(self, rook, king_to)
+        self.castles.is_chess960() && castling_uncovers_rank_attack(self, rook, king_to)
     }
 }
 
@@ -574,14 +642,30 @@ impl Default for Atomic {
 }
 
 impl Setup for Atomic {
-    fn board(&self) -> &Board { &self.board }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.turn }
-    fn castling_rights(&self) -> Bitboard { self.castles.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.ep_square.filter(|_| has_relevant_ep(self)) }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.halfmove_clock }
-    fn fullmoves(&self) -> u32 { self.fullmoves }
+    fn board(&self) -> &Board {
+        &self.board
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.turn
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.castles.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.ep_square.filter(|_| has_relevant_ep(self))
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.halfmove_clock
+    }
+    fn fullmoves(&self) -> u32 {
+        self.fullmoves
+    }
 }
 
 impl Position for Atomic {
@@ -615,24 +699,34 @@ impl Position for Atomic {
     }
 
     fn play_unchecked(&mut self, m: &Move) {
-        do_move(&mut self.board, &mut self.turn, &mut self.castles,
-                &mut self.ep_square, &mut self.halfmove_clock,
-                &mut self.fullmoves, m);
+        do_move(
+            &mut self.board,
+            &mut self.turn,
+            &mut self.castles,
+            &mut self.ep_square,
+            &mut self.halfmove_clock,
+            &mut self.fullmoves,
+            m,
+        );
 
         match *m {
-            Move::Normal { capture: Some(_), to, .. } | Move::EnPassant { to, .. } => {
+            Move::Normal {
+                capture: Some(_),
+                to,
+                ..
+            }
+            | Move::EnPassant { to, .. } => {
                 self.board.remove_piece_at(to);
 
-                let explosion_radius = attacks::king_attacks(to) &
-                                       self.board().occupied() &
-                                       !self.board.pawns();
+                let explosion_radius =
+                    attacks::king_attacks(to) & self.board().occupied() & !self.board.pawns();
 
                 for explosion in explosion_radius {
                     self.board.remove_piece_at(explosion);
                     self.castles.discard_rook(explosion);
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 
@@ -653,8 +747,9 @@ impl Position for Atomic {
             let mut after = self.clone();
             after.play_unchecked(m);
             if let Some(our_king) = after.board().king_of(self.turn()) {
-                (after.board.kings() & after.board().by_color(!self.turn())).is_empty() ||
-                after.king_attackers(our_king, !self.turn(), after.board.occupied()).is_empty()
+                (after.board.kings() & after.board().by_color(!self.turn())).is_empty() || after
+                    .king_attackers(our_king, !self.turn(), after.board.occupied())
+                    .is_empty()
             } else {
                 false
             }
@@ -662,7 +757,9 @@ impl Position for Atomic {
     }
 
     fn king_attackers(&self, square: Square, attacker: Color, occupied: Bitboard) -> Bitboard {
-        if (attacks::king_attacks(square) & self.board().kings() & self.board().by_color(attacker)).any() {
+        if (attacks::king_attacks(square) & self.board().kings() & self.board().by_color(attacker))
+            .any()
+        {
             Bitboard(0)
         } else {
             self.board().attacks_to(square, attacker, occupied)
@@ -690,11 +787,19 @@ impl Position for Atomic {
         if (self.board.by_color(!color) & !self.board.kings()).any() {
             // Unless there are only bishops that cannot explode each other.
             if self.board().occupied() == self.board().kings() | self.board().bishops() {
-                if (self.board().bishops() & self.board().white() & Bitboard::DARK_SQUARES).is_empty() {
-                    return (self.board().bishops() & self.board().black() & Bitboard::LIGHT_SQUARES).is_empty();
+                if (self.board().bishops() & self.board().white() & Bitboard::DARK_SQUARES)
+                    .is_empty()
+                {
+                    return (self.board().bishops()
+                        & self.board().black()
+                        & Bitboard::LIGHT_SQUARES)
+                        .is_empty();
                 }
-                if (self.board().bishops() & self.board().white() & Bitboard::LIGHT_SQUARES).is_empty() {
-                    return (self.board().bishops() & self.board().black() & Bitboard::DARK_SQUARES).is_empty();
+                if (self.board().bishops() & self.board().white() & Bitboard::LIGHT_SQUARES)
+                    .is_empty()
+                {
+                    return (self.board().bishops() & self.board().black() & Bitboard::DARK_SQUARES)
+                        .is_empty();
                 }
             }
 
@@ -731,8 +836,8 @@ impl Position for Atomic {
 
 impl CastlingUncoversRankAttack for Atomic {
     fn castling_uncovers_rank_attack(&self, rook: Square, king_to: Square) -> bool {
-        (attacks::king_attacks(king_to) & self.board().kings() & self.them()).is_empty() &&
-        castling_uncovers_rank_attack(self, rook, king_to)
+        (attacks::king_attacks(king_to) & self.board().kings() & self.them()).is_empty()
+            && castling_uncovers_rank_attack(self, rook, king_to)
     }
 }
 
@@ -762,21 +867,43 @@ impl Default for Giveaway {
 }
 
 impl Setup for Giveaway {
-    fn board(&self) -> &Board { &self.board }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.turn }
-    fn castling_rights(&self) -> Bitboard { self.castles.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.ep_square.filter(|_| has_relevant_ep(self)) }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.halfmove_clock }
-    fn fullmoves(&self) -> u32 { self.fullmoves }
+    fn board(&self) -> &Board {
+        &self.board
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.turn
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.castles.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.ep_square.filter(|_| has_relevant_ep(self))
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.halfmove_clock
+    }
+    fn fullmoves(&self) -> u32 {
+        self.fullmoves
+    }
 }
 
 impl Position for Giveaway {
     fn play_unchecked(&mut self, m: &Move) {
-        do_move(&mut self.board, &mut self.turn, &mut self.castles,
-                &mut self.ep_square, &mut self.halfmove_clock,
-                &mut self.fullmoves, m);
+        do_move(
+            &mut self.board,
+            &mut self.turn,
+            &mut self.castles,
+            &mut self.ep_square,
+            &mut self.halfmove_clock,
+            &mut self.fullmoves,
+            m,
+        );
     }
 
     fn from_setup<S: Setup>(setup: &S) -> Result<Giveaway, PositionError> {
@@ -848,8 +975,10 @@ impl Position for Giveaway {
         if self.board.occupied() == self.board.bishops() {
             let we_some_on_light = (self.board.by_color(color) & Bitboard::LIGHT_SQUARES).any();
             let we_some_on_dark = (self.board.by_color(color) & Bitboard::DARK_SQUARES).any();
-            let they_all_on_dark = (self.board.by_color(!color) & Bitboard::LIGHT_SQUARES).is_empty();
-            let they_all_on_light = (self.board.by_color(!color) & Bitboard::DARK_SQUARES).is_empty();
+            let they_all_on_dark =
+                (self.board.by_color(!color) & Bitboard::LIGHT_SQUARES).is_empty();
+            let they_all_on_light =
+                (self.board.by_color(!color) & Bitboard::DARK_SQUARES).is_empty();
             (we_some_on_light && they_all_on_dark) || (we_some_on_dark && they_all_on_light)
         } else {
             false
@@ -858,7 +987,9 @@ impl Position for Giveaway {
 
     fn variant_outcome(&self) -> Option<Outcome> {
         if self.us().is_empty() || self.is_stalemate() {
-            Some(Outcome::Decisive { winner: self.turn() })
+            Some(Outcome::Decisive {
+                winner: self.turn(),
+            })
         } else {
             None
         }
@@ -878,14 +1009,30 @@ pub struct KingOfTheHill {
 }
 
 impl Setup for KingOfTheHill {
-    fn board(&self) -> &Board { self.chess.board() }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.chess.turn() }
-    fn castling_rights(&self) -> Bitboard { self.chess.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.chess.ep_square() }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.chess.halfmove_clock() }
-    fn fullmoves(&self) -> u32 { self.chess.fullmoves() }
+    fn board(&self) -> &Board {
+        self.chess.board()
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.chess.turn()
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.chess.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.chess.ep_square()
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.chess.halfmove_clock()
+    }
+    fn fullmoves(&self) -> u32 {
+        self.chess.fullmoves()
+    }
 }
 
 impl Position for KingOfTheHill {
@@ -966,14 +1113,30 @@ pub struct ThreeCheck {
 }
 
 impl Setup for ThreeCheck {
-    fn board(&self) -> &Board { self.chess.board() }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.chess.turn() }
-    fn castling_rights(&self) -> Bitboard { self.chess.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.chess.ep_square() }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { Some(&self.remaining_checks) }
-    fn halfmove_clock(&self) -> u32 { self.chess.halfmove_clock() }
-    fn fullmoves(&self) -> u32 { self.chess.fullmoves }
+    fn board(&self) -> &Board {
+        self.chess.board()
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.chess.turn()
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.chess.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.chess.ep_square()
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        Some(&self.remaining_checks)
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.chess.halfmove_clock()
+    }
+    fn fullmoves(&self) -> u32 {
+        self.chess.fullmoves
+    }
 }
 
 impl Position for ThreeCheck {
@@ -994,8 +1157,11 @@ impl Position for ThreeCheck {
         };
 
         match Chess::from_setup(setup) {
-            Ok(chess) => errors.into_result(ThreeCheck { chess, remaining_checks }),
-            Err(err) => Err(errors | err)
+            Ok(chess) => errors.into_result(ThreeCheck {
+                chess,
+                remaining_checks,
+            }),
+            Err(err) => Err(errors | err),
         }
     }
 
@@ -1090,7 +1256,10 @@ impl Crazyhouse {
         if checkers.is_empty() {
             !self.board().occupied()
         } else if let Some(checker) = checkers.single_square() {
-            let king = self.board().king_of(self.turn()).expect("king in crazyhouse");
+            let king = self
+                .board()
+                .king_of(self.turn())
+                .expect("king in crazyhouse");
             attacks::between(checker, king)
         } else {
             Bitboard(0)
@@ -1099,20 +1268,40 @@ impl Crazyhouse {
 }
 
 impl Setup for Crazyhouse {
-    fn board(&self) -> &Board { self.chess.board() }
-    fn pockets(&self) -> Option<&Pockets> { Some(&self.pockets) }
-    fn turn(&self) -> Color { self.chess.turn() }
-    fn castling_rights(&self) -> Bitboard { self.chess.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.chess.ep_square() }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.chess.halfmove_clock() }
-    fn fullmoves(&self) -> u32 { self.chess.fullmoves() }
+    fn board(&self) -> &Board {
+        self.chess.board()
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        Some(&self.pockets)
+    }
+    fn turn(&self) -> Color {
+        self.chess.turn()
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.chess.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.chess.ep_square()
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.chess.halfmove_clock()
+    }
+    fn fullmoves(&self) -> u32 {
+        self.chess.fullmoves()
+    }
 }
 
 impl Position for Crazyhouse {
     fn play_unchecked(&mut self, m: &Move) {
         match *m {
-            Move::Normal { capture: Some(capture), to, .. } => {
+            Move::Normal {
+                capture: Some(capture),
+                to,
+                ..
+            } => {
                 let capture = if self.board().promoted().contains(to) {
                     Role::Pawn
                 } else {
@@ -1136,7 +1325,11 @@ impl Position for Crazyhouse {
     fn from_setup<S: Setup>(setup: &S) -> Result<Crazyhouse, PositionError> {
         Chess::from_setup(setup).and_then(|chess| {
             let pockets = setup.pockets().cloned().unwrap_or_default();
-            if pockets.count().saturating_add(chess.board().occupied().count()) > 64 {
+            if pockets
+                .count()
+                .saturating_add(chess.board().occupied().count())
+                > 64
+            {
                 Err(PositionError::VARIANT)
             } else if pockets.white.kings > 0 || pockets.black.kings > 0 {
                 Err(PositionError::TOO_MANY_KINGS)
@@ -1166,7 +1359,10 @@ impl Position for Crazyhouse {
 
         if pocket.pawns > 0 {
             for to in targets & !Bitboard::BACKRANKS {
-                moves.push(Move::Put { role: Role::Pawn, to });
+                moves.push(Move::Put {
+                    role: Role::Pawn,
+                    to,
+                });
             }
         }
     }
@@ -1182,8 +1378,9 @@ impl Position for Crazyhouse {
     fn san_candidates(&self, role: Role, to: Square, moves: &mut MoveList) {
         self.chess.san_candidates(role, to, moves);
 
-        if self.our_pocket().by_role(role) > 0 && self.legal_put_squares().contains(to) &&
-           (role != Role::Pawn || !Bitboard::BACKRANKS.contains(to))
+        if self.our_pocket().by_role(role) > 0
+            && self.legal_put_squares().contains(to)
+            && (role != Role::Pawn || !Bitboard::BACKRANKS.contains(to))
         {
             moves.push(Move::Put { role, to });
         }
@@ -1192,10 +1389,11 @@ impl Position for Crazyhouse {
     fn is_irreversible(&self, m: &Move) -> bool {
         match *m {
             Move::Castle { .. } => true,
-            Move::Normal { role, from, to, .. } =>
-                self.castling_rights().contains(from) ||
-                self.castling_rights().contains(to) ||
-                (role == Role::King && self.chess.castles.has_side(self.turn())),
+            Move::Normal { role, from, to, .. } => {
+                self.castling_rights().contains(from)
+                    || self.castling_rights().contains(to)
+                    || (role == Role::King && self.chess.castles.has_side(self.turn()))
+            }
             _ => false,
         }
     }
@@ -1204,19 +1402,23 @@ impl Position for Crazyhouse {
         // In practise no material can leave the game, but this is simple
         // to implement anyway. Bishops can be captured and put onto a
         // different color complex.
-        self.board().occupied().count() + self.pockets.count() <= 3 &&
-        self.board().pawns().is_empty() &&
-        self.board().rooks_and_queens().is_empty() &&
-        self.pockets.white.pawns == 0 &&
-        self.pockets.black.pawns == 0 &&
-        self.pockets.white.rooks == 0 &&
-        self.pockets.black.rooks == 0 &&
-        self.pockets.white.queens == 0 &&
-        self.pockets.black.queens == 0
+        self.board().occupied().count() + self.pockets.count() <= 3
+            && self.board().pawns().is_empty()
+            && self.board().rooks_and_queens().is_empty()
+            && self.pockets.white.pawns == 0
+            && self.pockets.black.pawns == 0
+            && self.pockets.white.rooks == 0
+            && self.pockets.black.rooks == 0
+            && self.pockets.white.queens == 0
+            && self.pockets.black.queens == 0
     }
 
-    fn is_variant_end(&self) -> bool { false }
-    fn variant_outcome(&self) -> Option<Outcome> { None }
+    fn is_variant_end(&self) -> bool {
+        false
+    }
+    fn variant_outcome(&self) -> Option<Outcome> {
+        None
+    }
 }
 
 impl CastlingUncoversRankAttack for Crazyhouse {
@@ -1246,21 +1448,43 @@ impl Default for RacingKings {
 }
 
 impl Setup for RacingKings {
-    fn board(&self) -> &Board { &self.board }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.turn }
-    fn castling_rights(&self) -> Bitboard { Bitboard(0) }
-    fn ep_square(&self) -> Option<Square> { None }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.halfmove_clock }
-    fn fullmoves(&self) -> u32 { self.fullmoves }
+    fn board(&self) -> &Board {
+        &self.board
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.turn
+    }
+    fn castling_rights(&self) -> Bitboard {
+        Bitboard(0)
+    }
+    fn ep_square(&self) -> Option<Square> {
+        None
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.halfmove_clock
+    }
+    fn fullmoves(&self) -> u32 {
+        self.fullmoves
+    }
 }
 
 impl Position for RacingKings {
     fn play_unchecked(&mut self, m: &Move) {
-        do_move(&mut self.board, &mut self.turn, &mut Castles::empty(),
-                &mut None, &mut self.halfmove_clock,
-                &mut self.fullmoves, m);
+        do_move(
+            &mut self.board,
+            &mut self.turn,
+            &mut Castles::empty(),
+            &mut None,
+            &mut self.halfmove_clock,
+            &mut self.fullmoves,
+            m,
+        );
     }
 
     fn from_setup<S: Setup>(setup: &S) -> Result<RacingKings, PositionError> {
@@ -1289,9 +1513,9 @@ impl Position for RacingKings {
             errors |= PositionError::VARIANT;
         }
 
-        if pos.turn().is_black() &&
-           (pos.board().white() & pos.board().kings() & Rank::Eighth).any() &&
-           (pos.board().black() & pos.board().kings() & Rank::Eighth).any()
+        if pos.turn().is_black()
+            && (pos.board().white() & pos.board().kings() & Rank::Eighth).any()
+            && (pos.board().black() & pos.board().kings() & Rank::Eighth).any()
         {
             errors |= PositionError::VARIANT;
         }
@@ -1309,7 +1533,10 @@ impl Position for RacingKings {
         // Generate all legal moves (no castling, no ep).
         let target = !self.us();
         gen_non_king(self, target, moves);
-        let king = self.board().king_of(self.turn()).expect("king in racingkings");
+        let king = self
+            .board()
+            .king_of(self.turn())
+            .expect("king in racingkings");
         gen_safe_king(self, king, target, moves);
 
         let blockers = slider_blockers(self.board(), self.them(), king);
@@ -1348,7 +1575,10 @@ impl Position for RacingKings {
         // White has reached the backrank. Check if black can catch up.
         let black_king = self.board().king_of(Black).expect("king in racingkings");
         for target in attacks::king_attacks(black_king) & Rank::Eighth {
-            if self.king_attackers(target, White, self.board().occupied()).is_empty() {
+            if self
+                .king_attackers(target, White, self.board().occupied())
+                .is_empty()
+            {
                 return false;
             }
         }
@@ -1406,21 +1636,43 @@ impl Default for Horde {
 }
 
 impl Setup for Horde {
-    fn board(&self) -> &Board { &self.board }
-    fn pockets(&self) -> Option<&Pockets> { None }
-    fn turn(&self) -> Color { self.turn }
-    fn castling_rights(&self) -> Bitboard { self.castles.castling_rights() }
-    fn ep_square(&self) -> Option<Square> { self.ep_square.filter(|_| has_relevant_ep(self)) }
-    fn remaining_checks(&self) -> Option<&RemainingChecks> { None }
-    fn halfmove_clock(&self) -> u32 { self.halfmove_clock }
-    fn fullmoves(&self) -> u32 { self.fullmoves }
+    fn board(&self) -> &Board {
+        &self.board
+    }
+    fn pockets(&self) -> Option<&Pockets> {
+        None
+    }
+    fn turn(&self) -> Color {
+        self.turn
+    }
+    fn castling_rights(&self) -> Bitboard {
+        self.castles.castling_rights()
+    }
+    fn ep_square(&self) -> Option<Square> {
+        self.ep_square.filter(|_| has_relevant_ep(self))
+    }
+    fn remaining_checks(&self) -> Option<&RemainingChecks> {
+        None
+    }
+    fn halfmove_clock(&self) -> u32 {
+        self.halfmove_clock
+    }
+    fn fullmoves(&self) -> u32 {
+        self.fullmoves
+    }
 }
 
 impl Position for Horde {
     fn play_unchecked(&mut self, m: &Move) {
-        do_move(&mut self.board, &mut self.turn, &mut self.castles,
-                &mut self.ep_square, &mut self.halfmove_clock,
-                &mut self.fullmoves, m);
+        do_move(
+            &mut self.board,
+            &mut self.turn,
+            &mut self.castles,
+            &mut self.ep_square,
+            &mut self.halfmove_clock,
+            &mut self.fullmoves,
+            m,
+        );
     }
 
     fn from_setup<S: Setup>(setup: &S) -> Result<Horde, PositionError> {
@@ -1442,8 +1694,8 @@ impl Position for Horde {
             - PositionError::PAWNS_ON_BACKRANK
             - PositionError::MISSING_KING;
 
-        if (pos.board().pawns() & pos.board().white() & Rank::Eighth).any() ||
-           (pos.board().pawns() & pos.board().black() & Rank::First).any()
+        if (pos.board().pawns() & pos.board().white() & Rank::Eighth).any()
+            || (pos.board().pawns() & pos.board().black() & Rank::First).any()
         {
             errors |= PositionError::PAWNS_ON_BACKRANK;
         }
@@ -1452,8 +1704,8 @@ impl Position for Horde {
             errors |= PositionError::MISSING_KING;
         }
 
-        if (pos.board().kings() & pos.board().white()).any() &&
-           (pos.board().kings() & pos.board().black()).any()
+        if (pos.board().kings() & pos.board().white()).any()
+            && (pos.board().kings() & pos.board().black()).any()
         {
             errors |= PositionError::VARIANT;
         }
@@ -1522,24 +1774,31 @@ impl Position for Horde {
 
 impl CastlingUncoversRankAttack for Horde {
     fn castling_uncovers_rank_attack(&self, rook: Square, king_to: Square) -> bool {
-        self.castles.is_chess960() &&
-        castling_uncovers_rank_attack(self, rook, king_to)
+        self.castles.is_chess960() && castling_uncovers_rank_attack(self, rook, king_to)
     }
 }
 
-fn do_move(board: &mut Board,
-           turn: &mut Color,
-           castles: &mut Castles,
-           ep_square: &mut Option<Square>,
-           halfmove_clock: &mut u32,
-           fullmoves: &mut u32,
-           m: &Move) {
+fn do_move(
+    board: &mut Board,
+    turn: &mut Color,
+    castles: &mut Castles,
+    ep_square: &mut Option<Square>,
+    halfmove_clock: &mut u32,
+    fullmoves: &mut u32,
+    m: &Move,
+) {
     let color = *turn;
     ep_square.take();
     *halfmove_clock = halfmove_clock.saturating_add(1);
 
     match *m {
-        Move::Normal { role, from, capture, to, promotion } => {
+        Move::Normal {
+            role,
+            from,
+            capture,
+            to,
+            promotion,
+        } => {
             if role == Role::Pawn || capture.is_some() {
                 *halfmove_clock = 0;
             }
@@ -1561,11 +1820,25 @@ fn do_move(board: &mut Board,
             let promoted = board.promoted().contains(from) || promotion.is_some();
 
             board.discard_piece_at(from);
-            board.set_piece_at(to, promotion.map_or(role.of(color), |p| p.of(color)), promoted);
-        },
+            board.set_piece_at(
+                to,
+                promotion.map_or(role.of(color), |p| p.of(color)),
+                promoted,
+            );
+        }
         Move::Castle { king, rook } => {
-            let rook_to = (if rook - king < 0 { Square::D1 } else { Square::F1 }).combine(rook);
-            let king_to = (if rook - king < 0 { Square::C1 } else { Square::G1 }).combine(king);
+            let rook_to = (if rook - king < 0 {
+                Square::D1
+            } else {
+                Square::F1
+            })
+            .combine(rook);
+            let king_to = (if rook - king < 0 {
+                Square::C1
+            } else {
+                Square::G1
+            })
+            .combine(king);
 
             board.discard_piece_at(king);
             board.discard_piece_at(rook);
@@ -1622,7 +1895,9 @@ fn validate<P: Position>(pos: &P) -> PositionError {
                 errors |= PositionError::INVALID_EP_SQUARE;
             }
 
-            if pos.board().occupied().contains(ep_square) || pos.board().occupied().contains(seventh_rank_sq) {
+            if pos.board().occupied().contains(ep_square)
+                || pos.board().occupied().contains(seventh_rank_sq)
+            {
                 errors |= PositionError::INVALID_EP_SQUARE;
             }
         }
@@ -1634,14 +1909,17 @@ fn validate<P: Position>(pos: &P) -> PositionError {
         }
     }
 
-    if (pos.board().kings() & pos.board().white()).more_than_one() ||
-       (pos.board().kings() & pos.board().black()).more_than_one()
+    if (pos.board().kings() & pos.board().white()).more_than_one()
+        || (pos.board().kings() & pos.board().black()).more_than_one()
     {
         errors |= PositionError::TOO_MANY_KINGS;
     }
 
     if let Some(their_king) = pos.board().king_of(!pos.turn()) {
-        if pos.king_attackers(their_king, pos.turn(), pos.board().occupied()).any() {
+        if pos
+            .king_attackers(their_king, pos.turn(), pos.board().occupied())
+            .any()
+        {
             errors |= PositionError::OPPOSITE_CHECK;
         }
     }
@@ -1659,7 +1937,11 @@ fn gen_non_king<P: Position>(pos: &P, target: Bitboard, moves: &mut MoveList) {
 
 fn gen_safe_king<P: Position>(pos: &P, king: Square, target: Bitboard, moves: &mut MoveList) {
     for to in attacks::king_attacks(king) & target {
-        if pos.board().attacks_to(to, !pos.turn(), pos.board().occupied()).is_empty() {
+        if pos
+            .board()
+            .attacks_to(to, !pos.turn(), pos.board().occupied())
+            .is_empty()
+        {
             moves.push(Move::Normal {
                 role: Role::King,
                 from: king,
@@ -1687,7 +1969,13 @@ fn evasions<P: Position>(pos: &P, king: Square, checkers: Bitboard, moves: &mut 
     }
 }
 
-fn gen_castling_moves<P: Position + CastlingUncoversRankAttack>(pos: &P, castles: &Castles, king: Square, side: CastlingSide, moves: &mut MoveList) {
+fn gen_castling_moves<P: Position + CastlingUncoversRankAttack>(
+    pos: &P,
+    castles: &Castles,
+    king: Square,
+    side: CastlingSide,
+    moves: &mut MoveList,
+) {
     if let Some(rook) = castles.rook(pos.turn(), side) {
         let path = castles.path(pos.turn(), side);
         if (path & pos.board().occupied()).any() {
@@ -1697,7 +1985,10 @@ fn gen_castling_moves<P: Position + CastlingUncoversRankAttack>(pos: &P, castles
         let king_to = side.king_to(pos.turn());
         let king_path = attacks::between(king, king_to).with(king_to).with(king);
         for sq in king_path {
-            if pos.king_attackers(sq, !pos.turn(), pos.board().occupied() ^ king).any() {
+            if pos
+                .king_attackers(sq, !pos.turn(), pos.board().occupied() ^ king)
+                .any()
+            {
                 return;
             }
         }
@@ -1711,9 +2002,11 @@ fn gen_castling_moves<P: Position + CastlingUncoversRankAttack>(pos: &P, castles
 }
 
 fn castling_uncovers_rank_attack<P: Position>(pos: &P, rook: Square, king_to: Square) -> bool {
-    (attacks::rook_attacks(king_to, pos.board().occupied().without(rook)) &
-     pos.them() & pos.board().rooks_and_queens() &
-     Bitboard::rank(king_to.rank())).any()
+    (attacks::rook_attacks(king_to, pos.board().occupied().without(rook))
+        & pos.them()
+        & pos.board().rooks_and_queens()
+        & Bitboard::rank(king_to.rank()))
+    .any()
 }
 
 trait Stepper {
@@ -1755,11 +2048,11 @@ trait Slider {
     }
 }
 
-enum KnightTag { }
-enum BishopTag { }
-enum RookTag { }
-enum QueenTag { }
-enum KingTag { }
+enum KnightTag {}
+enum BishopTag {}
+enum RookTag {}
+enum QueenTag {}
+enum KingTag {}
 
 impl Stepper for KnightTag {
     const ROLE: Role = Role::Knight;
@@ -1817,12 +2110,11 @@ fn gen_pawn_moves<P: Position>(pos: &P, target: Bitboard, moves: &mut MoveList) 
         }
     }
 
-    let single_moves = pos.our(Role::Pawn).relative_shift(pos.turn(), 8) &
-                       !pos.board().occupied();
+    let single_moves = pos.our(Role::Pawn).relative_shift(pos.turn(), 8) & !pos.board().occupied();
 
-    let double_moves = single_moves.relative_shift(pos.turn(), 8) &
-                       Bitboard::relative_rank(pos.turn(), Rank::Fourth) &
-                       !pos.board().occupied();
+    let double_moves = single_moves.relative_shift(pos.turn(), 8)
+        & Bitboard::relative_rank(pos.turn(), Rank::Fourth)
+        & !pos.board().occupied();
 
     for to in single_moves & target & !Bitboard::BACKRANKS {
         if let Some(from) = to.offset(pos.turn().fold(-8, 8)) {
@@ -1856,17 +2148,48 @@ fn gen_pawn_moves<P: Position>(pos: &P, target: Bitboard, moves: &mut MoveList) 
 }
 
 fn push_promotions(moves: &mut MoveList, from: Square, to: Square, capture: Option<Role>) {
-    moves.push(Move::Normal { role: Role::Pawn, from, capture, to, promotion: Some(Role::Queen) });
-    moves.push(Move::Normal { role: Role::Pawn, from, capture, to, promotion: Some(Role::Rook) });
-    moves.push(Move::Normal { role: Role::Pawn, from, capture, to, promotion: Some(Role::Bishop) });
-    moves.push(Move::Normal { role: Role::Pawn, from, capture, to, promotion: Some(Role::Knight) });
+    moves.push(Move::Normal {
+        role: Role::Pawn,
+        from,
+        capture,
+        to,
+        promotion: Some(Role::Queen),
+    });
+    moves.push(Move::Normal {
+        role: Role::Pawn,
+        from,
+        capture,
+        to,
+        promotion: Some(Role::Rook),
+    });
+    moves.push(Move::Normal {
+        role: Role::Pawn,
+        from,
+        capture,
+        to,
+        promotion: Some(Role::Bishop),
+    });
+    moves.push(Move::Normal {
+        role: Role::Pawn,
+        from,
+        capture,
+        to,
+        promotion: Some(Role::Knight),
+    });
 }
 
 fn add_king_promotions(moves: &mut MoveList) {
     let mut king_promotions = MoveList::new();
 
     for m in &moves[..] {
-        if let Move::Normal { role, from, capture, to, promotion: Some(Role::Queen) } = *m {
+        if let Move::Normal {
+            role,
+            from,
+            capture,
+            to,
+            promotion: Some(Role::Queen),
+        } = *m
+        {
             king_promotions.push(Move::Normal {
                 role,
                 from,
@@ -1886,7 +2209,12 @@ fn has_relevant_ep<P: Position>(pos: &P) -> bool {
     !moves.is_empty()
 }
 
-fn gen_en_passant(board: &Board, turn: Color, ep_square: Option<Square>, moves: &mut MoveList) -> bool {
+fn gen_en_passant(
+    board: &Board,
+    turn: Color,
+    ep_square: Option<Square>,
+    moves: &mut MoveList,
+) -> bool {
     let mut found = false;
 
     if let Some(to) = ep_square {
@@ -1900,8 +2228,8 @@ fn gen_en_passant(board: &Board, turn: Color, ep_square: Option<Square>, moves: 
 }
 
 fn slider_blockers(board: &Board, enemy: Bitboard, king: Square) -> Bitboard {
-    let snipers = (attacks::rook_attacks(king, Bitboard(0)) & board.rooks_and_queens()) |
-                  (attacks::bishop_attacks(king, Bitboard(0)) & board.bishops_and_queens());
+    let snipers = (attacks::rook_attacks(king, Bitboard(0)) & board.rooks_and_queens())
+        | (attacks::bishop_attacks(king, Bitboard(0)) & board.bishops_and_queens());
 
     let mut blockers = Bitboard(0);
 
@@ -1918,25 +2246,29 @@ fn slider_blockers(board: &Board, enemy: Bitboard, king: Square) -> Bitboard {
 
 fn is_safe<P: Position>(pos: &P, king: Square, m: &Move, blockers: Bitboard) -> bool {
     match *m {
-        Move::Normal { from, to, .. } =>
-            !(pos.us() & blockers).contains(from) || attacks::aligned(from, to, king),
+        Move::Normal { from, to, .. } => {
+            !(pos.us() & blockers).contains(from) || attacks::aligned(from, to, king)
+        }
         Move::EnPassant { from, to } => {
             let mut occupied = pos.board().occupied();
             occupied.flip(from);
             occupied.flip(to.combine(from)); // captured pawn
             occupied.add(to);
 
-            (attacks::rook_attacks(king, occupied) & pos.them() & pos.board().rooks_and_queens()).is_empty() &&
-            (attacks::bishop_attacks(king, occupied) & pos.them() & pos.board().bishops_and_queens()).is_empty()
-        },
+            (attacks::rook_attacks(king, occupied) & pos.them() & pos.board().rooks_and_queens())
+                .is_empty()
+                && (attacks::bishop_attacks(king, occupied)
+                    & pos.them()
+                    & pos.board().bishops_and_queens())
+                .is_empty()
+        }
         _ => true,
     }
 }
 
 fn filter_san_candidates(role: Role, to: Square, moves: &mut MoveList) {
     moves.retain(|m| match *m {
-        Move::Normal { role: r, to: t, .. } | Move::Put { role: r, to: t } =>
-            to == t && role == r,
+        Move::Normal { role: r, to: t, .. } | Move::Put { role: r, to: t } => to == t && role == r,
         Move::EnPassant { to: t, .. } => role == Role::Pawn && t == to,
         Move::Castle { .. } => false,
     });
@@ -1952,7 +2284,8 @@ mod tests {
     #[test]
     fn test_most_known_legals() {
         let fen = "R6R/3Q4/1Q4Q1/4Q3/2Q4Q/Q4Q2/pp1Q4/kBNN1KB1 w - - 0 1";
-        let pos: Chess = fen.parse::<Fen>()
+        let pos: Chess = fen
+            .parse::<Fen>()
             .expect("valid fen")
             .position()
             .expect("legal position");
@@ -1965,7 +2298,8 @@ mod tests {
     #[test]
     fn test_pinned_san_candidate() {
         let fen = "R2r2k1/6pp/1Np2p2/1p2pP2/4p3/4K3/3r2PP/8 b - - 5 37";
-        let pos: Chess = fen.parse::<Fen>()
+        let pos: Chess = fen
+            .parse::<Fen>()
             .expect("valid fen")
             .position()
             .expect("valid position");
@@ -1973,13 +2307,16 @@ mod tests {
         let mut moves = MoveList::new();
         pos.san_candidates(Role::Rook, Square::D3, &mut moves);
 
-        assert_eq!(moves[0], Move::Normal {
-            role: Role::Rook,
-            from: Square::D2,
-            capture: None,
-            to: Square::D3,
-            promotion: None,
-        });
+        assert_eq!(
+            moves[0],
+            Move::Normal {
+                role: Role::Rook,
+                from: Square::D2,
+                capture: None,
+                to: Square::D3,
+                promotion: None,
+            }
+        );
 
         assert_eq!(moves.len(), 1);
     }
@@ -1987,7 +2324,8 @@ mod tests {
     #[test]
     fn test_promotion() {
         let fen = "3r3K/6PP/8/8/8/2k5/8/8 w - - 0 1";
-        let pos: Chess = fen.parse::<Fen>()
+        let pos: Chess = fen
+            .parse::<Fen>()
             .expect("valid fen")
             .position()
             .expect("valid position");
@@ -1999,7 +2337,8 @@ mod tests {
     }
 
     fn assert_insufficient_material<P: Position>(fen: &str, white: bool, black: bool) {
-        let pos: P = fen.parse::<Fen>()
+        let pos: P = fen
+            .parse::<Fen>()
             .expect("valid fen")
             .position()
             .expect("valid position");
@@ -2029,7 +2368,11 @@ mod tests {
         assert_insufficient_material::<Giveaway>("8/8/8/6b1/8/3B4/4B3/5B2 w - - 0 1", true, true);
         assert_insufficient_material::<Giveaway>("8/8/5b2/8/8/3B4/3B4/8 w - - 0 1", true, false);
 
-        assert_insufficient_material::<KingOfTheHill>("8/5k2/8/8/8/8/3K4/8 w - - 0 1", false, false);
+        assert_insufficient_material::<KingOfTheHill>(
+            "8/5k2/8/8/8/8/3K4/8 w - - 0 1",
+            false,
+            false,
+        );
 
         assert_insufficient_material::<RacingKings>("8/5k2/8/8/8/8/3K4/8 w - - 0 1", false, false);
 
@@ -2037,7 +2380,11 @@ mod tests {
         assert_insufficient_material::<ThreeCheck>("8/5k2/8/8/8/8/3K2N1/8 w - - 0 1", false, true);
 
         assert_insufficient_material::<Crazyhouse>("8/5k2/8/8/8/8/3K2N1/8 w - - 0 1", true, true);
-        assert_insufficient_material::<Crazyhouse>("8/5k2/8/8/8/5B2/3KB3/8 w - - 0 1", false, false);
+        assert_insufficient_material::<Crazyhouse>(
+            "8/5k2/8/8/8/5B2/3KB3/8 w - - 0 1",
+            false,
+            false,
+        );
 
         //assert_insufficient_material::<Horde>("8/5k2/8/8/8/4NN2/8/8 w - - 0 1", true, false);
     }

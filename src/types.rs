@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-use std::fmt;
 use std::char;
+use std::fmt;
 use std::ops;
 
 use square::Square;
@@ -24,7 +24,7 @@ pub use self::Color::{Black, White};
 pub use self::Role::{Bishop, King, Knight, Pawn, Queen, Rook};
 
 /// `White` or `Black`.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Debug)]
 pub enum Color {
     Black = 0,
     White = 1,
@@ -41,41 +41,67 @@ impl Color {
 
     #[inline]
     pub fn from_white(white: bool) -> Color {
-        if white { Color::White } else { Color::Black }
+        if white {
+            Color::White
+        } else {
+            Color::Black
+        }
     }
 
     #[inline]
     pub fn from_black(black: bool) -> Color {
-        if black { Color::Black } else { Color::White }
+        if black {
+            Color::Black
+        } else {
+            Color::White
+        }
     }
 
     #[inline]
     pub fn fold<T>(self, white: T, black: T) -> T {
         match self {
             Color::White => white,
-            Color::Black => black
+            Color::Black => black,
         }
     }
 
     #[inline]
-    pub fn is_white(self) -> bool { self == Color::White }
+    pub fn is_white(self) -> bool {
+        self == Color::White
+    }
     #[inline]
-    pub fn is_black(self) -> bool { self == Color::Black }
+    pub fn is_black(self) -> bool {
+        self == Color::Black
+    }
 
-    pub fn char(self) -> char { self.fold('w', 'b') }
+    pub fn char(self) -> char {
+        self.fold('w', 'b')
+    }
 
     #[inline]
-    pub fn pawn(self)   -> Piece { Pawn.of(self) }
+    pub fn pawn(self) -> Piece {
+        Pawn.of(self)
+    }
     #[inline]
-    pub fn knight(self) -> Piece { Knight.of(self) }
+    pub fn knight(self) -> Piece {
+        Knight.of(self)
+    }
     #[inline]
-    pub fn bishop(self) -> Piece { Bishop.of(self) }
+    pub fn bishop(self) -> Piece {
+        Bishop.of(self)
+    }
     #[inline]
-    pub fn rook(self)   -> Piece { Rook.of(self) }
+    pub fn rook(self) -> Piece {
+        Rook.of(self)
+    }
     #[inline]
-    pub fn queen(self)  -> Piece { Queen.of(self) }
+    pub fn queen(self) -> Piece {
+        Queen.of(self)
+    }
     #[inline]
-    pub fn king(self)   -> Piece { King.of(self) }
+    pub fn king(self) -> Piece {
+        King.of(self)
+    }
 }
 
 impl ops::Not for Color {
@@ -97,7 +123,7 @@ impl ops::BitXor<bool> for Color {
 }
 
 /// Piece types: `Pawn`, `Knight`, `Bishop`, `Rook`, `Queen`, `King`.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
 pub enum Role {
     Pawn = 1,
     Knight = 2,
@@ -174,19 +200,28 @@ pub struct Piece {
 }
 
 impl Piece {
+    pub fn emoji_char(self) -> char {
+        match self.role {
+            Role::Pawn => self.color.fold('♟', '♙'),
+            Role::King => self.color.fold('♚', '♔'),
+            Role::Queen => self.color.fold('♛', '♕'),
+            Role::Bishop => self.color.fold('♝', '♗'),
+            Role::Knight => self.color.fold('♞', '♘'),
+            Role::Rook => self.color.fold('♜', '♖'),
+        }
+    }
+
     pub fn char(self) -> char {
         self.color.fold(self.role.upper_char(), self.role.char())
     }
 
     pub fn from_char(ch: char) -> Option<Piece> {
-        Role::from_char(ch).map(|role| {
-            role.of(Color::from_white(32 & ch as u8 == 0))
-        })
+        Role::from_char(ch).map(|role| role.of(Color::from_white(32 & ch as u8 == 0)))
     }
 }
 
 /// Information about a move.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash, PartialOrd)]
 pub enum Move {
     Normal {
         role: Role,
@@ -195,9 +230,18 @@ pub enum Move {
         to: Square,
         promotion: Option<Role>,
     },
-    EnPassant { from: Square, to: Square },
-    Castle { king: Square, rook: Square },
-    Put { role: Role, to: Square },
+    EnPassant {
+        from: Square,
+        to: Square,
+    },
+    Castle {
+        king: Square,
+        rook: Square,
+    },
+    Put {
+        role: Role,
+        to: Square,
+    },
 }
 
 impl Move {
@@ -240,7 +284,10 @@ impl Move {
     /// Checks if the move is a capture.
     pub fn is_capture(&self) -> bool {
         match *self {
-            Move::Normal { capture: Some(_), .. } | Move::EnPassant { .. } => true,
+            Move::Normal {
+                capture: Some(_), ..
+            }
+            | Move::EnPassant { .. } => true,
             _ => false,
         }
     }
@@ -256,7 +303,13 @@ impl Move {
     /// Checks if the move zeros the half-move clock.
     pub fn is_zeroing(&self) -> bool {
         match *self {
-            Move::Normal { role: Role::Pawn, ..} | Move::Normal { capture: Some(_), .. } | Move::EnPassant { .. } => true,
+            Move::Normal {
+                role: Role::Pawn, ..
+            }
+            | Move::Normal {
+                capture: Some(_), ..
+            }
+            | Move::EnPassant { .. } => true,
             _ => false,
         }
     }
@@ -289,7 +342,9 @@ impl Move {
     /// Checks if the move is a promotion.
     pub fn is_promotion(&self) -> bool {
         match *self {
-            Move::Normal { promotion: Some(_), .. } => true,
+            Move::Normal {
+                promotion: Some(_), ..
+            } => true,
             _ => false,
         }
     }
@@ -298,35 +353,45 @@ impl Move {
 impl fmt::Display for Move {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Move::Normal { role, from, capture, to, promotion } => {
+            Move::Normal {
+                role,
+                from,
+                capture,
+                to,
+                promotion,
+            } => {
                 if role != Role::Pawn {
                     write!(f, "{}", role.upper_char())?;
                 }
 
-                write!(f, "{}{}{}", from, if capture.is_some() { 'x' } else { '-' }, to)?;
+                write!(
+                    f,
+                    "{}{}{}",
+                    from,
+                    if capture.is_some() { 'x' } else { '-' },
+                    to
+                )?;
 
                 if let Some(p) = promotion {
                     write!(f, "={}", p.upper_char())?;
                 }
 
                 Ok(())
-            },
-            Move::EnPassant { from, to, .. } => {
-                write!(f, "{}x{}", from, to)
-            },
+            }
+            Move::EnPassant { from, to, .. } => write!(f, "{}x{}", from, to),
             Move::Castle { king, rook } => {
                 if king < rook {
                     write!(f, "O-O")
                 } else {
                     write!(f, "O-O-O")
                 }
-            },
+            }
             Move::Put { role, to } => {
                 if role != Role::Pawn {
                     write!(f, "{}", role.upper_char())?;
                 }
                 write!(f, "@{}", to)
-            },
+            }
         }
     }
 }
@@ -366,12 +431,14 @@ impl Pocket {
     }
 
     pub fn count(&self) -> usize {
-        usize::from(self.pawns
-            .saturating_add(self.knights)
-            .saturating_add(self.bishops)
-            .saturating_add(self.rooks)
-            .saturating_add(self.queens)
-            .saturating_add(self.kings))
+        usize::from(
+            self.pawns
+                .saturating_add(self.knights)
+                .saturating_add(self.bishops)
+                .saturating_add(self.rooks)
+                .saturating_add(self.queens)
+                .saturating_add(self.kings),
+        )
     }
 }
 
@@ -417,7 +484,14 @@ impl fmt::Display for Pockets {
         for &color in &[White, Black] {
             for &role in &ROLES {
                 let piece = Piece { color, role };
-                write!(f, "{}", piece.char().to_string().repeat(self.by_piece(piece) as usize))?;
+                write!(
+                    f,
+                    "{}",
+                    piece
+                        .char()
+                        .to_string()
+                        .repeat(self.by_piece(piece) as usize)
+                )?;
             }
         }
         Ok(())

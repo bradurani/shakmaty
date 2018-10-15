@@ -47,7 +47,7 @@ use types::{Color, Piece, Role};
 #[derive(Clone, Eq, PartialEq)]
 pub struct Board {
     occupied_co: [Bitboard; 2], // indexed by Color
-    occupied: [Bitboard; 7], // all and pieces indexed by Role
+    occupied: [Bitboard; 7],    // all and pieces indexed by Role
     promoted: Bitboard,
 }
 
@@ -112,40 +112,68 @@ impl Board {
     }
 
     #[inline]
-    pub fn occupied(&self) -> Bitboard { self.occupied[0] }
+    pub fn occupied(&self) -> Bitboard {
+        self.occupied[0]
+    }
 
     #[inline]
-    pub fn pawns(&self)   -> Bitboard { self.occupied[Role::Pawn as usize] }
+    pub fn pawns(&self) -> Bitboard {
+        self.occupied[Role::Pawn as usize]
+    }
     #[inline]
-    pub fn knights(&self) -> Bitboard { self.occupied[Role::Knight as usize] }
+    pub fn knights(&self) -> Bitboard {
+        self.occupied[Role::Knight as usize]
+    }
     #[inline]
-    pub fn bishops(&self) -> Bitboard { self.occupied[Role::Bishop as usize] }
+    pub fn bishops(&self) -> Bitboard {
+        self.occupied[Role::Bishop as usize]
+    }
     #[inline]
-    pub fn rooks(&self)   -> Bitboard { self.occupied[Role::Rook as usize] }
+    pub fn rooks(&self) -> Bitboard {
+        self.occupied[Role::Rook as usize]
+    }
     #[inline]
-    pub fn queens(&self)  -> Bitboard { self.occupied[Role::Queen as usize] }
+    pub fn queens(&self) -> Bitboard {
+        self.occupied[Role::Queen as usize]
+    }
     #[inline]
-    pub fn kings(&self)   -> Bitboard { self.occupied[Role::King as usize] }
+    pub fn kings(&self) -> Bitboard {
+        self.occupied[Role::King as usize]
+    }
 
     #[inline]
-    pub fn white(&self) -> Bitboard { self.occupied_co[Color::White as usize] }
+    pub fn white(&self) -> Bitboard {
+        self.occupied_co[Color::White as usize]
+    }
     #[inline]
-    pub fn black(&self) -> Bitboard { self.occupied_co[Color::Black as usize] }
+    pub fn black(&self) -> Bitboard {
+        self.occupied_co[Color::Black as usize]
+    }
 
     #[inline]
-    pub fn promoted(&self) -> Bitboard { self.promoted }
+    pub fn promoted(&self) -> Bitboard {
+        self.promoted
+    }
 
     /// Bishops, rooks and queens.
     #[inline]
-    pub fn sliders(&self) -> Bitboard { self.bishops() ^ self.rooks() ^ self.queens() }
+    pub fn sliders(&self) -> Bitboard {
+        self.bishops() ^ self.rooks() ^ self.queens()
+    }
     /// Pawns, knights and kings.
     #[inline]
-    pub fn steppers(&self) -> Bitboard { self.pawns() ^ self.knights() ^ self.kings() }
+    pub fn steppers(&self) -> Bitboard {
+        self.pawns() ^ self.knights() ^ self.kings()
+    }
 
     #[inline]
-    pub fn rooks_and_queens(&self) -> Bitboard { self.rooks() ^ self.queens() }
+    pub fn rooks_and_queens(&self) -> Bitboard {
+        self.rooks() ^ self.queens()
+    }
     #[inline]
-    pub fn bishops_and_queens(&self) -> Bitboard { self.bishops() ^ self.queens() }
+    pub fn bishops_and_queens(&self) -> Bitboard {
+        self.bishops() ^ self.queens()
+    }
 
     /// The (unique, unpromoted) king of the given side.
     #[inline]
@@ -261,12 +289,12 @@ impl Board {
 
     #[inline]
     pub fn attacks_to(&self, sq: Square, attacker: Color, occupied: Bitboard) -> Bitboard {
-        self.by_color(attacker) & (
-            (attacks::rook_attacks(sq, occupied) & self.rooks_and_queens()) |
-            (attacks::bishop_attacks(sq, occupied) & self.bishops_and_queens()) |
-            (attacks::knight_attacks(sq) & self.knights()) |
-            (attacks::king_attacks(sq) & self.kings()) |
-            (attacks::pawn_attacks(!attacker, sq) & self.pawns()))
+        self.by_color(attacker)
+            & ((attacks::rook_attacks(sq, occupied) & self.rooks_and_queens())
+                | (attacks::bishop_attacks(sq, occupied) & self.bishops_and_queens())
+                | (attacks::knight_attacks(sq) & self.knights())
+                | (attacks::king_attacks(sq) & self.kings())
+                | (attacks::pawn_attacks(!attacker, sq) & self.pawns()))
     }
 
     pub fn pieces(&self) -> Pieces {
@@ -293,7 +321,10 @@ impl fmt::Debug for Board {
         for rank in (0..8).map(Rank::new).rev() {
             for file in (0..8).map(File::new) {
                 let square = Square::from_coords(file, rank);
-                f.write_char(self.piece_at(square).map_or('.', |piece| piece.char()))?;
+                f.write_char(
+                    self.piece_at(square)
+                        .map_or('.', |piece| piece.emoji_char()),
+                )?;
                 f.write_char(if file < File::H { ' ' } else { '\n' })?;
             }
         }
@@ -378,15 +409,22 @@ impl Iterator for Pieces {
 
 impl ExactSizeIterator for Pieces {
     fn len(&self) -> usize {
-        self.pawns.count() + self.knights.count() + self.bishops.count()
-            + self.rooks.count() + self.queens.count() + self.kings.count()
+        self.pawns.count()
+            + self.knights.count()
+            + self.bishops.count()
+            + self.rooks.count()
+            + self.queens.count()
+            + self.kings.count()
     }
 
     #[cfg(nightly)]
     fn is_empty(&self) -> bool {
-        self.white.is_empty() && self.pawns.is_empty()
-            && self.knights.is_empty() && self.bishops.is_empty()
-            && self.rooks.is_empty() && self.queens.is_empty()
+        self.white.is_empty()
+            && self.pawns.is_empty()
+            && self.knights.is_empty()
+            && self.bishops.is_empty()
+            && self.rooks.is_empty()
+            && self.queens.is_empty()
             && self.kings.is_empty()
     }
 }

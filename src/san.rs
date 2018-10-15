@@ -511,7 +511,7 @@ impl SanPlus {
     /// check and checkmate suffixes.
     pub fn from_move<P: Position>(mut pos: P, m: &Move) -> SanPlus {
         let san = San::from_move(&pos, m);
-        pos.play_unchecked(m);
+        pos.play_safe(m);
         let checkmate = match pos.outcome() {
             Some(Outcome::Decisive { .. }) => true,
             _ => false,
